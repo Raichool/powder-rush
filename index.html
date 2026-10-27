@@ -46,6 +46,7 @@ for(let z=-120;z>-LEN+80;z-=110+rnd()*60){const x=(rnd()-.5)*W*0.6;ramps.push({x
  const g=new THREE.BoxGeometry(9,1,10);const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x6fd3ff}));
  m.position.set(x,hgt(x,z)+0.8,z);m.rotation.x=0.35+0.35*-0+Math.atan(0.35)*0;m.rotation.x=-0.35;S.add(m);
  for(let i=trees.length-1;i>=0;i--){const t=trees[i];if(Math.abs(t.x-x)<9&&Math.abs(t.z-z)<25)t.dead=1;}}
+trees.forEach(t=>{if(t.z>-160&&Math.abs(t.x)<8)t.dead=1});
 trees.forEach((t,i)=>{if(t.dead){m4.makeScale(0,0,0);trunk.setMatrixAt(i,m4)}});
 // snow particles for speed
 const pN=300,pg=new THREE.BufferGeometry(),pp=new Float32Array(pN*3);pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
@@ -92,7 +93,7 @@ function step(dt){if(st!=='play')return;P.t+=dt;
   if(P.tGrab>0){P.grab=Math.min(1,P.grab+dt*6);P.tGrab-=dt*1.4;}else P.grab=Math.max(0,P.grab-dt*5);
   if(P.y<=g&&P.vy<0){P.y=g;P.air=false;land();}}
  else{P.y=g;for(const r of ramps)if(Math.abs(P.x-r.x)<4.5&&Math.abs(P.z-(r.z-4))<1.2&&P.v>8){P.air=true;P.vy=8+P.v*0.28;flash('BIG AIR !','#6fd3ff');}}
- if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;flash('SAPIN !','#ff5555');break;}
+ if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');break;}
  if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');}
  for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
  $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
