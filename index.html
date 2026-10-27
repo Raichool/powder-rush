@@ -1,0 +1,110 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><title>Powder Rush</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#9cc8f0;touch-action:none;-webkit-user-select:none;user-select:none;font-family:system-ui,-apple-system,sans-serif}
+canvas{display:block}
+#hud{position:fixed;inset:0;pointer-events:none;color:#fff;text-shadow:0 2px 4px #0008}
+#tl{position:absolute;top:calc(10px + env(safe-area-inset-top));left:12px;font-size:18px;font-weight:800}
+#tr{position:absolute;top:calc(10px + env(safe-area-inset-top));right:12px;text-align:right;font-size:18px;font-weight:800}
+#trick{position:absolute;top:28%;width:100%;text-align:center;font-size:30px;font-weight:900;font-style:italic;color:#ffe14a;opacity:0;transition:opacity .2s}
+#bar{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));left:10%;width:80%;height:6px;background:#fff4;border-radius:3px}
+#bar i{display:block;height:100%;width:0;background:#ff4fa0;border-radius:3px}
+.scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(#1b2b5ecc,#ff4fa0aa);color:#fff;text-align:center;padding:20px;box-sizing:border-box}
+.scr h1{font-size:46px;margin:0;font-style:italic;letter-spacing:2px}
+.scr p{max-width:340px;line-height:1.45;font-size:15px}
+.scr button{font-size:22px;font-weight:900;padding:14px 40px;border:0;border-radius:40px;background:#ffe14a;color:#1b2b5e;margin-top:10px}
+.hide{display:none!important}
+</style></head><body>
+<div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
+<div id="start" class="scr"><h1>POWDER RUSH</h1><p><b>Glisse</b> le doigt gauche/droite pour tourner.<br><b>Tape</b> pour sauter.<br>En l'air, <b>swipe</b> : ← → vrille, ↑ salto, ↓ grab.<br>Termine la figure avant de toucher la neige !</p><button id="go">GO !</button></div>
+<div id="end" class="scr hide"><h1>ARRIVÉE</h1><p id="res"></p><button id="again">REJOUER</button></div>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const LEN=2400, W=60;
+const R=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
+R.setPixelRatio(Math.min(devicePixelRatio,1.5));document.body.prepend(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0x9cc8f0);S.fog=new THREE.Fog(0x9cc8f0,40,170);
+const C=new THREE.PerspectiveCamera(70,1,0.1,400);
+S.add(new THREE.HemisphereLight(0xffffff,0x8aa0c0,1.1));const sun=new THREE.DirectionalLight(0xffffff,1.2);sun.position.set(30,60,20);S.add(sun);
+// terrain height: downhill along -z
+const hgt=(x,z)=>z*0.35+Math.sin(z*0.05)*2+Math.sin(x*0.15+z*0.03)*0.8+Math.max(0,Math.abs(x)-W/2)*0.6;
+const gG=new THREE.PlaneGeometry(160,LEN+300,40,300);gG.rotateX(-Math.PI/2);
+const pa=gG.attributes.position;for(let i=0;i<pa.count;i++){const x=pa.getX(i),z=pa.getZ(i)-LEN/2;pa.setZ(i,z);pa.setY(i,hgt(x,z));}
+gG.computeVertexNormals();S.add(new THREE.Mesh(gG,new THREE.MeshLambertMaterial({color:0xf4f8ff})));
+// edge poles / finish
+const fin=new THREE.Mesh(new THREE.BoxGeometry(W,1.5,0.5),new THREE.MeshLambertMaterial({color:0xff4fa0}));fin.position.set(0,hgt(0,-LEN)+6,-LEN);S.add(fin);
+// trees (instanced)
+const rnd=(()=>{let s=7;return()=>(s=(s*16807)%2147483647)/2147483647})();
+const trees=[],ramps=[];
+for(let z=-60;z>-LEN;z-=7){for(let k=0;k<2;k++){const x=(rnd()-.5)*W*0.95;trees.push({x,z:z-rnd()*7});}
+ for(let s of[-1,1]){trees.push({x:s*(W/2+2+rnd()*20),z:z-rnd()*7});}}
+const tN=trees.length,trunk=new THREE.InstancedMesh(new THREE.ConeGeometry(2.2,7,6),new THREE.MeshLambertMaterial({color:0x1f6b45}),tN);
+const m4=new THREE.Matrix4();trees.forEach((t,i)=>{m4.makeTranslation(t.x,hgt(t.x,t.z)+3.5,t.z);trunk.setMatrixAt(i,m4)});S.add(trunk);
+for(let z=-120;z>-LEN+80;z-=110+rnd()*60){const x=(rnd()-.5)*W*0.6;ramps.push({x,z});
+ const g=new THREE.BoxGeometry(9,1,10);const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x6fd3ff}));
+ m.position.set(x,hgt(x,z)+0.8,z);m.rotation.x=0.35+0.35*-0+Math.atan(0.35)*0;m.rotation.x=-0.35;S.add(m);
+ for(let i=trees.length-1;i>=0;i--){const t=trees[i];if(Math.abs(t.x-x)<9&&Math.abs(t.z-z)<25)t.dead=1;}}
+trees.forEach((t,i)=>{if(t.dead){m4.makeScale(0,0,0);trunk.setMatrixAt(i,m4)}});
+// snow particles for speed
+const pN=300,pg=new THREE.BufferGeometry(),pp=new Float32Array(pN*3);pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
+const parts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffffff,size:0.15}));S.add(parts);
+// rider
+const rider=new THREE.Group(),body=new THREE.Group();rider.add(body);
+const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,1.7),new THREE.MeshLambertMaterial({color:0xff4fa0}));board.position.y=0.04;body.add(board);
+const torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.7,4,8),new THREE.MeshLambertMaterial({color:0xffe14a}));torso.position.y=0.95;body.add(torso);
+const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8),new THREE.MeshLambertMaterial({color:0x1b2b5e}));head.position.y=1.6;body.add(head);S.add(rider);
+// state
+let P,st='menu';const $=id=>document.getElementById(id);
+function reset(){P={x:0,z:-5,y:hgt(0,-5),vy:0,v:18,steer:0,air:false,spin:0,flip:0,grab:0,tSpin:0,tFlip:0,tGrab:0,trickPts:0,score:0,combo:1,crash:0,t:0,name:''};
+ for(let i=0;i<pN;i++){pp[i*3]=(rnd()-.5)*30;pp[i*3+1]=P.y+rnd()*8;pp[i*3+2]=P.z-rnd()*60;}}
+reset();
+function flash(s,c){const e=$('trick');e.textContent=s;e.style.color=c||'#ffe14a';e.style.opacity=1;clearTimeout(flash.t);flash.t=setTimeout(()=>e.style.opacity=0,1100);}
+// input
+let tx=null,t0=0,sx=0,sy=0,steerT=0,keys={};
+addEventListener('pointerdown',e=>{if(st!=='play')return;tx=e.clientX;sx=e.clientX;sy=e.clientY;t0=performance.now();});
+addEventListener('pointermove',e=>{if(tx===null||P.air)return;steerT=Math.max(-1,Math.min(1,(e.clientX-sx)/(innerWidth*0.25)));});
+addEventListener('pointerup',e=>{if(tx===null)return;const dx=e.clientX-sx,dy=e.clientY-sy,dt=performance.now()-t0,d=Math.hypot(dx,dy);tx=null;steerT=0;
+ if(d<15&&dt<300)jump();else if(P.air&&d>30){if(Math.abs(dx)>Math.abs(dy))trick(dx>0?'R':'L');else trick(dy<0?'U':'D');}});
+addEventListener('keydown',e=>{keys[e.key]=1;if(st!=='play')return;if(e.key===' ')jump();if(P.air){({a:'L',d:'R',w:'U',s:'D'})[e.key]&&trick(({a:'L',d:'R',w:'U',s:'D'})[e.key]);}});
+addEventListener('keyup',e=>keys[e.key]=0);
+function jump(){if(P.air||P.crash>0)return;P.air=true;P.vy=7;}
+function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?1:-1)*Math.PI*2;P.trickPts+=360;P.name='Vrille '+Math.round(Math.abs(P.tSpin)/Math.PI*180);}
+ else if(d==='U'){P.tFlip-=Math.PI*2;P.trickPts+=500;P.name='Salto x'+Math.round(Math.abs(P.tFlip)/(Math.PI*2));}
+ else {P.tGrab+=1;P.trickPts+=200;P.name='Grab Indy';}flash(P.name);}
+function land(){const ok=Math.abs(P.tSpin-P.spin)<0.9&&Math.abs(P.tFlip-P.flip)<0.9&&P.grab<0.3;
+ if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');}
+ else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);}
+ P.spin=P.tSpin=P.flip=P.tFlip=0;P.tGrab=0;P.grab=0;P.trickPts=0;}
+// loop
+function resize(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.fov=innerWidth<innerHeight?78:62;C.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+let last=performance.now();
+function step(dt){if(st!=='play')return;P.t+=dt;
+ const kb=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);const tgt=kb||steerT;
+ if(P.crash>0){P.crash-=dt;P.steer*=0.9;}else P.steer+=(tgt-P.steer)*Math.min(1,dt*8);
+ if(!P.air){P.v+=dt*(9-Math.abs(P.steer)*7);P.v=Math.min(P.v,P.crash>0?8:46);}
+ P.x+=P.steer*P.v*0.55*dt;P.x=Math.max(-W/2-8,Math.min(W/2+8,P.x));P.z-=P.v*dt*Math.cos(P.steer*0.5);
+ const g=hgt(P.x,P.z);
+ if(P.air){P.vy-=20*dt;P.y+=P.vy*dt;
+  P.spin+=Math.sign(P.tSpin-P.spin)*Math.min(Math.abs(P.tSpin-P.spin),dt*11);P.flip+=Math.sign(P.tFlip-P.flip)*Math.min(Math.abs(P.tFlip-P.flip),dt*9);
+  if(P.tGrab>0){P.grab=Math.min(1,P.grab+dt*6);P.tGrab-=dt*1.4;}else P.grab=Math.max(0,P.grab-dt*5);
+  if(P.y<=g&&P.vy<0){P.y=g;P.air=false;land();}}
+ else{P.y=g;for(const r of ramps)if(Math.abs(P.x-r.x)<4.5&&Math.abs(P.z-(r.z-4))<1.2&&P.v>8){P.air=true;P.vy=8+P.v*0.28;flash('BIG AIR !','#6fd3ff');}}
+ if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;flash('SAPIN !','#ff5555');break;}
+ if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');}
+ for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
+ $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
+ $('tr').firstChild.nodeValue=P.t.toFixed(1)+' s';$('sp').textContent=Math.round(P.v*3.6)+' km/h';$('prog').style.width=Math.min(100,-P.z/LEN*100)+'%';}
+function draw(){rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
+ body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
+ const cz=P.z+7.5,cy=Math.max(P.y,hgt(P.x,cz))+3.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.15);
+ C.lookAt(P.x,P.y+1,P.z-6);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
+ R.render(S,C);}
+function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+const go=()=>{reset();st='play';$('start').classList.add('hide');$('end').classList.add('hide');};
+$('go').onclick=go;$('again').onclick=go;
+window.__start=go;
+</script></body></html>
