@@ -19,9 +19,10 @@ canvas{display:block}
 <div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
 <div id="start" class="scr"><h1>POWDER RUSH</h1><p><b>Glisse</b> le doigt gauche/droite pour tourner.<br><b>Tape</b> pour sauter.<br>En l'air, <b>swipe</b> : ← → vrille, ↑ salto, ↓ grab.<br>Termine la figure avant de toucher la neige !</p><button id="go">GO !</button></div>
 <div id="end" class="scr hide"><h1>ARRIVÉE</h1><p id="res"></p><button id="again">REJOUER</button></div>
-<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 const LEN=2400, W=60;
 const R=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
 R.setPixelRatio(Math.min(devicePixelRatio,1.5));document.body.prepend(R.domElement);
@@ -56,6 +57,11 @@ const rider=new THREE.Group(),body=new THREE.Group();rider.add(body);
 const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,1.7),new THREE.MeshLambertMaterial({color:0xff4fa0}));board.position.y=0.04;body.add(board);
 const torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.7,4,8),new THREE.MeshLambertMaterial({color:0xffe14a}));torso.position.y=0.95;body.add(torso);
 const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8),new THREE.MeshLambertMaterial({color:0x1b2b5e}));head.position.y=1.6;body.add(head);S.add(rider);
+let mixer=null,aRide=null,aGrab=null;
+new GLTFLoader().load('assets/rider.glb',g=>{const m=g.scene;m.rotation.y=Math.PI/2;m.scale.setScalar(1.25);m.traverse(o=>{if(o.isMesh){o.frustumCulled=false;}});
+ board.visible=torso.visible=head.visible=false;body.add(m);mixer=new THREE.AnimationMixer(m);
+ const clip=n=>g.animations.find(a=>a.name===n);aRide=mixer.clipAction(clip('Ride'));aGrab=mixer.clipAction(clip('Grab'));
+ aRide.play();aGrab.play();aGrab.paused=true;aGrab.time=14/24;aGrab.setEffectiveWeight(0);window.__riderLoaded=true;},undefined,e=>console.warn('rider glb',e));
 // state
 let P,st='menu';const $=id=>document.getElementById(id);
 function reset(){P={x:0,z:-5,y:hgt(0,-5),vy:0,v:18,steer:0,air:false,spin:0,flip:0,grab:0,tSpin:0,tFlip:0,tGrab:0,trickPts:0,score:0,combo:1,crash:0,t:0,name:''};
@@ -98,12 +104,13 @@ function step(dt){if(st!=='play')return;P.t+=dt;
  for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
  $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
  $('tr').firstChild.nodeValue=P.t.toFixed(1)+' s';$('sp').textContent=Math.round(P.v*3.6)+' km/h';$('prog').style.width=Math.min(100,-P.z/LEN*100)+'%';}
-function draw(){rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
+function draw(dt){if(mixer){const w=P.air?Math.min(1,Math.max(P.grab,0.6*(P.tSpin||P.tFlip?1:0))):0;aGrab.setEffectiveWeight(w);aRide.setEffectiveWeight(1-w);mixer.update(dt||0);}
+rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
  body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
- const cz=P.z+7.5,cy=Math.max(P.y,hgt(P.x,cz))+3.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.15);
- C.lookAt(P.x,P.y+1,P.z-6);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
+ const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
+ C.lookAt(P.x,P.y+1.2,P.z-5);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
  R.render(S,C);}
-function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw();requestAnimationFrame(loop);}
+function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw(dt);requestAnimationFrame(loop);}
 requestAnimationFrame(loop);
 const go=()=>{reset();st='play';$('start').classList.add('hide');$('end').classList.add('hide');};
 $('go').onclick=go;$('again').onclick=go;
