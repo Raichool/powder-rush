@@ -30,14 +30,28 @@ const TI=Math.max(0,Math.min(2,+(new URLSearchParams(location.search).get('t')??
 const LEN=TR.len, W=TR.w;
 const R=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
 R.setPixelRatio(Math.min(devicePixelRatio,1.5));document.body.prepend(R.domElement);
-const S=new THREE.Scene();S.background=new THREE.Color(TR.sky);S.fog=new THREE.Fog(TR.sky,40,170);
+const S=new THREE.Scene();S.background=new THREE.Color(TR.sky);S.fog=new THREE.Fog(new THREE.Color(TR.sky).offsetHSL(0,-0.1,0.12),60,190);
 const C=new THREE.PerspectiveCamera(70,1,0.1,400);
-S.add(new THREE.HemisphereLight(0xffffff,0x8aa0c0,1.1));const sun=new THREE.DirectionalLight(0xffffff,1.2);sun.position.set(30,60,20);S.add(sun);
+S.add(new THREE.HemisphereLight(0xdfeaff,0x6f7fae,1.0));const sun=new THREE.DirectionalLight(0xfff1dc,1.5);sun.position.set(30,60,20);S.add(sun);
 // terrain height: downhill along -z
 const hgt=(x,z)=>z*TR.slope+Math.sin(z*0.05)*2+Math.sin(x*0.15+z*0.03)*0.8+Math.max(0,Math.abs(x)-W/2)*0.6;
 const gG=new THREE.PlaneGeometry(160,LEN+300,40,300);gG.rotateX(-Math.PI/2);
 const pa=gG.attributes.position;for(let i=0;i<pa.count;i++){const x=pa.getX(i),z=pa.getZ(i)-LEN/2;pa.setZ(i,z);pa.setY(i,hgt(x,z));}
-gG.computeVertexNormals();S.add(new THREE.Mesh(gG,new THREE.MeshLambertMaterial({color:0xf4f8ff})));
+gG.computeVertexNormals();{const n=gG.attributes.normal,col=new Float32Array(pa.count*3);for(let i=0;i<pa.count;i++){const x=pa.getX(i),z=pa.getZ(i),sh=Math.max(0,Math.min(1,(1-n.getY(i))*6)),e=Math.max(0,Math.min(1,(Math.abs(x)-W/2)/12)),w=0.04*Math.sin(x*1.7+z*0.9)*Math.sin(z*0.37);
+ col[i*3]=0.96-sh*0.25-e*0.06+w;col[i*3+1]=0.97-sh*0.15-e*0.03+w;col[i*3+2]=1-sh*0.02;}gG.setAttribute('color',new THREE.BufferAttribute(col,3));}
+S.add(new THREE.Mesh(gG,new THREE.MeshLambertMaterial({vertexColors:true})));
+// sky dome (gradient) + sun + distant mountains, all fog-free and following the rider
+const sky=new THREE.Group();S.add(sky);const top=new THREE.Color(TR.sky).offsetHSL(0.02,0.15,-0.28),hor=new THREE.Color(TR.sky).offsetHSL(0,-0.1,0.12);
+{const g=new THREE.SphereGeometry(380,24,12),c=[],v=g.attributes.position;for(let i=0;i<v.count;i++){const k=Math.max(0,v.getY(i)/380);const cc=hor.clone().lerp(top,Math.pow(k,0.6));c.push(cc.r,cc.g,cc.b);}g.setAttribute('color',new THREE.Float32BufferAttribute(c,3));
+ sky.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,fog:false,depthWrite:false})));
+ const sunM=new THREE.Mesh(new THREE.CircleGeometry(14,24),new THREE.MeshBasicMaterial({color:0xfff6d8,fog:false,transparent:true,opacity:.95}));sunM.position.set(-120,140,-300);sunM.lookAt(0,0,0);sky.add(sunM);
+ const halo=new THREE.Mesh(new THREE.CircleGeometry(40,24),new THREE.MeshBasicMaterial({color:0xfff2c0,fog:false,transparent:true,opacity:.18}));halo.position.copy(sunM.position).multiplyScalar(1.01);halo.lookAt(0,0,0);sky.add(halo);
+ for(const [rad,hm,dark] of[[330,1,0],[250,0.75,1]]){const N=64,pos=[],col=[],idx=[];const rock=new THREE.Color(dark?0x3f4f7a:0x6f7fae).lerp(hor,dark?0.2:0.4),snow=new THREE.Color(0xf6f9ff).lerp(hor,dark?0.05:0.3);
+  for(let i=0;i<=N;i++){const a=i/N*Math.PI*2,h=(-20+Math.abs(Math.sin(i*1.7+rad))*55+Math.sin(i*0.6)*15)*hm;pos.push(Math.cos(a)*rad,-140,Math.sin(a)*rad, Math.cos(a)*rad,h,Math.sin(a)*rad);
+   col.push(rock.r,rock.g,rock.b, snow.r,snow.g,snow.b);if(i<N){const b=i*2;idx.push(b,b+1,b+2, b+1,b+3,b+2);}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setIndex(idx);
+  sky.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,fog:false,depthWrite:false})));}}
+sky.children.forEach(m=>m.renderOrder=-1);
 // edge poles / finish
 const fin=new THREE.Mesh(new THREE.BoxGeometry(W,1.5,0.5),new THREE.MeshLambertMaterial({color:0xff4fa0}));fin.position.set(0,hgt(0,-LEN)+6,-LEN);S.add(fin);
 // trees (instanced)
@@ -46,7 +60,7 @@ const trees=[],ramps=[];
 for(let z=-60;z>-LEN;z-=7){for(let k=0;k<TR.trees;k++){const x=(rnd()-.5)*W*0.95;trees.push({x,z:z-rnd()*7});}
  for(let s of[-1,1]){trees.push({x:s*(W/2+2+rnd()*20),z:z-rnd()*7});}}
 const tN=trees.length,trunk=new THREE.InstancedMesh(new THREE.ConeGeometry(2.2,7,6),new THREE.MeshLambertMaterial({color:0x1f6b45}),tN);
-const m4=new THREE.Matrix4();trees.forEach((t,i)=>{m4.makeTranslation(t.x,hgt(t.x,t.z)+3.5,t.z);trunk.setMatrixAt(i,m4)});S.add(trunk);
+const m4=new THREE.Matrix4();trees.forEach((t,i)=>{m4.makeTranslation(t.x,hgt(t.x,t.z)+3.5,t.z);trunk.setMatrixAt(i,m4)});S.add(trunk);const tips=new THREE.InstancedMesh(new THREE.ConeGeometry(1.1,2.6,6),new THREE.MeshLambertMaterial({color:0xf2f6ff}),tN);trees.forEach((t,i)=>{m4.makeTranslation(t.x,hgt(t.x,t.z)+6.1,t.z);tips.setMatrixAt(i,m4)});S.add(tips);
 for(let z=-120;z>-LEN+80;z-=TR.rampGap+rnd()*60){const x=(rnd()-.5)*W*0.6;ramps.push({x,z});
  const g=new THREE.BoxGeometry(9,1*TR.kick,10*TR.kick);const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x6fd3ff}));
  m.position.set(x,hgt(x,z)+0.8,z);m.rotation.x=0.35+0.35*-0+Math.atan(0.35)*0;m.rotation.x=-0.35;S.add(m);
@@ -62,10 +76,16 @@ for(let i=0;i<TR.pads;i++){const z=-130-rnd()*(LEN-240),x=(rnd()-.5)*W*0.6;pads.
  for(const t of trees)if(Math.abs(t.x-x)<5&&Math.abs(t.z-z)<10)t.dead=1;}
 const railH=(r,z)=>hgt(r.x,z)+r.h;
 trees.forEach(t=>{if(t.z>-160&&Math.abs(t.x)<8)t.dead=1});
-trees.forEach((t,i)=>{if(t.dead){m4.makeScale(0,0,0);trunk.setMatrixAt(i,m4)}});
+trees.forEach((t,i)=>{if(t.dead){m4.makeScale(0,0,0);trunk.setMatrixAt(i,m4);tips.setMatrixAt(i,m4)}});
 // snow particles for speed
 const pN=300,pg=new THREE.BufferGeometry(),pp=new Float32Array(pN*3);pg.setAttribute('position',new THREE.BufferAttribute(pp,3));
-const parts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffffff,size:0.15}));S.add(parts);
+const parts=new THREE.Points(pg,new THREE.PointsMaterial({color:0xffffff,size:0.18,transparent:true,opacity:.85}));S.add(parts);
+// board spray particles
+const sN=160,sg=new THREE.BufferGeometry(),sp=new Float32Array(sN*3),sv=new Float32Array(sN*3),sl=new Float32Array(sN);sg.setAttribute('position',new THREE.BufferAttribute(sp,3));let si=0;
+const spray=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:0.28,transparent:true,opacity:.9,depthWrite:false}));spray.frustumCulled=false;S.add(spray);
+function sprayStep(dt){const k=P.air||P.rail||st!=='play'?0:Math.min(6,Math.round((Math.abs(P.steer)*1.2+P.v/38*0.4)*6*dt*60/6+(P.boostT>0?2:0)));
+ for(let n=0;n<k;n++){const i=si++%sN;sp[i*3]=P.x+(Math.random()-.5)*0.6;sp[i*3+1]=P.y+0.1;sp[i*3+2]=P.z+0.6;sv[i*3]=-P.steer*(3+Math.random()*4)+(Math.random()-.5)*2;sv[i*3+1]=2+Math.random()*3;sv[i*3+2]=P.v*0.5*Math.random();sl[i]=0.6;}
+ for(let i=0;i<sN;i++){if(sl[i]<=0){sp[i*3+1]=-1e4;continue;}sl[i]-=dt;sv[i*3+1]-=12*dt;sp[i*3]+=sv[i*3]*dt;sp[i*3+1]+=sv[i*3+1]*dt;sp[i*3+2]+=sv[i*3+2]*dt-P.v*dt*0;}sg.attributes.position.needsUpdate=true;}
 // rider
 const rider=new THREE.Group(),body=new THREE.Group();rider.add(body);
 const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,1.7),new THREE.MeshLambertMaterial({color:0xff4fa0}));board.position.y=0.04;body.add(board);
@@ -141,7 +161,7 @@ function draw(dt){let useFlip=false,useSpin=false;if(mixer){
  if(useFlip)A.Flip.time=A.Flip.getClip().duration*fr(P.flip);
  if(useSpin)A.Spin360.time=A.Spin360.getClip().duration*(P.spin>=0?fr(P.spin):1-fr(P.spin));
  mixer.update(dt||0);}
-rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
+rider.position.set(P.x,P.y,P.z);sky.position.set(P.x,P.y,P.z);sprayStep(dt||0);rider.rotation.set(0,-P.steer*0.5,0);
  if(mixer)body.rotation.set(useFlip?0:P.flip,useSpin?0:(useFlip?P.spin:P.spin),0);else body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
  const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;{const f=(innerWidth<innerHeight?78:62)+(P.boostT>0?14:0);if(Math.abs(C.fov-f)>0.1){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}}C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
  C.lookAt(P.x,P.y+1.2,P.z-5);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
