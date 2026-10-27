@@ -1,6 +1,6 @@
 // Powder Rush audio — 100% procedural Web Audio (no samples, no third-party assets). Code: original, same license as the game.
 (()=>{
-let ctx,M,SFX,MUS,noise,slide,slideF,slideG,wind,windF,windG,whG,whF,muted=localStorage.getItem('pr_mute')==='1',I=0,step=0,nextT=0,timer,rec;
+let gr=0,grG,grF,ctx,M,SFX,MUS,noise,slide,slideF,slideG,wind,windF,windG,whG,whF,muted=localStorage.getItem('pr_mute')==='1',I=0,step=0,nextT=0,timer,rec;
 const BPM=140,S16=60/BPM/4;
 function mkNoise(){const b=ctx.createBuffer(1,ctx.sampleRate*2,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b;}
 function loopNoise(type,f,q){const s=ctx.createBufferSource();s.buffer=noise;s.loop=true;const fl=ctx.createBiquadFilter();fl.type=type;fl.frequency.value=f;fl.Q.value=q;const g=ctx.createGain();g.gain.value=0;s.connect(fl).connect(g).connect(SFX);s.start();return[fl,g];}
@@ -12,7 +12,7 @@ function init(){if(ctx){ctx.state!=='running'&&ctx.resume();return;}
  const comp=ctx.createDynamicsCompressor();comp.threshold.value=-14;comp.ratio.value=4;
  M=ctx.createGain();M.gain.value=muted?0:0.9;M.connect(comp).connect(ctx.destination);
  SFX=ctx.createGain();SFX.gain.value=0.8;SFX.connect(M);MUS=ctx.createGain();MUS.gain.value=0.32;MUS.connect(M);
- noise=mkNoise();[slideF,slideG]=loopNoise('bandpass',600,0.8);[windF,windG]=loopNoise('lowpass',300,0.5);[whF,whG]=loopNoise('bandpass',900,3);
+ noise=mkNoise();[slideF,slideG]=loopNoise('bandpass',600,0.8);[windF,windG]=loopNoise('lowpass',300,0.5);[whF,whG]=loopNoise('bandpass',900,3);[grF,grG]=loopNoise('bandpass',3200,8);
  ctx.resume();nextT=ctx.currentTime+0.1;timer=setInterval(sched,25);}
 function env(g,t,a,v,d){g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(v,t+a);g.gain.exponentialRampToValueAtTime(0.0001,t+a+d);}
 function tone(f,f2,d,type='square',v=0.3,t=ctx.currentTime,bus=SFX){const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);env(g,t,0.005,v,d);o.connect(g).connect(bus);o.start(t);o.stop(t+d+0.05);}
@@ -35,7 +35,7 @@ const A={init,
   slideF.frequency.setTargetAtTime(350+v*900+Math.abs(s.steer)*1400,t,k);slideF.Q.value=0.7+Math.abs(s.steer)*2;
   windG.gain.setTargetAtTime(play?v*v*0.22+(s.air?0.08:0):0,t,0.2);windF.frequency.setTargetAtTime(250+v*900,t,0.2);
   whG.gain.setTargetAtTime(play&&s.trick?0.28:0,t,0.03);whF.frequency.setTargetAtTime(600+Math.sin(t*25)*350+400,t,0.01);
-  I=play?Math.min(1,v*0.6+(s.combo-1)*0.15):0.1;},
+  grG.gain.setTargetAtTime(play&&s.rail?0.35:0,t,0.03);grF.frequency.setTargetAtTime(2600+v*1500,t,0.05);I=play?Math.min(1,v*0.6+(s.combo-1)*0.15):0.1;},
  jump(){if(!ctx)return;burst(2500,0.18,0.35,'bandpass',undefined,SFX,600);tone(220,520,0.15,'triangle',0.15);},
  land(ok,pts){if(!ctx)return;burst(500,0.15,0.5);if(ok&&pts){const t=ctx.currentTime;[0,4,7,12].forEach((n,i)=>tone(hz(72+n),0,0.12,'square',0.12,t+0.05+i*0.06));}},
  combo(c){if(!ctx)return;const t=ctx.currentTime;tone(hz(76+c*2),hz(88+c*2),0.18,'sawtooth',0.1,t+0.3);},
@@ -43,7 +43,7 @@ const A={init,
  start(){if(!ctx)return;const t=ctx.currentTime;[0,0.25,0.5].forEach(d=>tone(440,0,0.12,'square',0.15,t+d));tone(880,0,0.35,'square',0.2,t+0.75);},
  finish(){if(!ctx)return;const t=ctx.currentTime;[60,64,67,72,76,79,84].forEach((n,i)=>tone(hz(n),0,0.2,'square',0.13,t+i*0.08));},
  boost(){if(!ctx)return;burst(400,0.6,0.5,'bandpass',undefined,SFX,4000);tone(110,880,0.5,'sawtooth',0.15);},
- grind(on){},
+ grind(on){if(!ctx)return;if(on){burst(5000,0.25,0.3,'highpass');tone(1800,1200,0.25,'sawtooth',0.05);}gr=on;},
  ui(){if(!ctx)return;tone(660,990,0.06,'square',0.1);},
  record(ms){return new Promise(r=>{const d=ctx.createMediaStreamDestination();M.connect(d);const mr=new MediaRecorder(d.stream),ch=[];mr.ondataavailable=e=>ch.push(e.data);mr.onstop=async()=>{const b=new Blob(ch);const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(b);};mr.start();setTimeout(()=>mr.stop(),ms);});}
 };
