@@ -57,11 +57,14 @@ const rider=new THREE.Group(),body=new THREE.Group();rider.add(body);
 const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.08,1.7),new THREE.MeshLambertMaterial({color:0xff4fa0}));board.position.y=0.04;body.add(board);
 const torso=new THREE.Mesh(new THREE.CapsuleGeometry(0.28,0.7,4,8),new THREE.MeshLambertMaterial({color:0xffe14a}));torso.position.y=0.95;body.add(torso);
 const head=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8),new THREE.MeshLambertMaterial({color:0x1b2b5e}));head.position.y=1.6;body.add(head);S.add(rider);
-let mixer=null,aRide=null,aGrab=null;
+let mixer=null,A={},oneShot=null;
 new GLTFLoader().load('assets/rider.glb',g=>{const m=g.scene;m.rotation.y=Math.PI/2;m.scale.setScalar(1.25);m.traverse(o=>{if(o.isMesh){o.frustumCulled=false;}});
  board.visible=torso.visible=head.visible=false;body.add(m);mixer=new THREE.AnimationMixer(m);
- const clip=n=>g.animations.find(a=>a.name===n);aRide=mixer.clipAction(clip('Ride'));aGrab=mixer.clipAction(clip('Grab'));
- aRide.play();aGrab.play();aGrab.paused=true;aGrab.time=14/24;aGrab.setEffectiveWeight(0);window.__riderLoaded=true;},undefined,e=>console.warn('rider glb',e));
+ for(const c of g.animations){const ac=mixer.clipAction(c);A[c.name]=ac;}
+ for(const n of['Ride','TurnL','TurnR','Grab','Spin360','Flip']){A[n].play();A[n].setEffectiveWeight(n==='Ride'?1:0);}
+ for(const n of['Grab','Spin360','Flip']){A[n].paused=true;}A.Grab.time=14/24;
+ for(const n of['Land','Crash']){A[n].setLoop(THREE.LoopOnce);A[n].clampWhenFinished=true;}
+ mixer.addEventListener('finished',e=>{if(e.action===oneShot&&oneShot===A.Land){oneShot.fadeOut(0.2);oneShot=null;}});window.__riderLoaded=true;},undefined,e=>console.warn('rider glb',e));
 // state
 let P,st='menu';const $=id=>document.getElementById(id);
 function reset(){P={x:0,z:-5,y:hgt(0,-5),vy:0,v:18,steer:0,air:false,spin:0,flip:0,grab:0,tSpin:0,tFlip:0,tGrab:0,trickPts:0,score:0,combo:1,crash:0,t:0,name:''};
@@ -80,8 +83,9 @@ function jump(){if(P.air||P.crash>0)return;P.air=true;P.vy=7;}
 function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?1:-1)*Math.PI*2;P.trickPts+=360;P.name='Vrille '+Math.round(Math.abs(P.tSpin)/Math.PI*180);}
  else if(d==='U'){P.tFlip-=Math.PI*2;P.trickPts+=500;P.name='Salto x'+Math.round(Math.abs(P.tFlip)/(Math.PI*2));}
  else {P.tGrab+=1;P.trickPts+=200;P.name='Grab Indy';}flash(P.name);}
-function land(){const ok=Math.abs(P.tSpin-P.spin)<0.9&&Math.abs(P.tFlip-P.flip)<0.9&&P.grab<0.3;
- if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');}
+function shot(n){if(!mixer)return;const a=A[n];if(oneShot&&oneShot!==a)oneShot.fadeOut(0.15);a.reset();a.setEffectiveWeight(1);a.fadeIn(0.12);a.play();oneShot=a;}
+function land(){const ok=Math.abs(P.tSpin-P.spin)<0.9&&Math.abs(P.tFlip-P.flip)<0.9&&P.grab<0.3;if(ok)shot('Land');
+ if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');shot('Crash');}
  else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);}
  P.spin=P.tSpin=P.flip=P.tFlip=0;P.tGrab=0;P.grab=0;P.trickPts=0;}
 // loop
@@ -99,14 +103,26 @@ function step(dt){if(st!=='play')return;P.t+=dt;
   if(P.tGrab>0){P.grab=Math.min(1,P.grab+dt*6);P.tGrab-=dt*1.4;}else P.grab=Math.max(0,P.grab-dt*5);
   if(P.y<=g&&P.vy<0){P.y=g;P.air=false;land();}}
  else{P.y=g;for(const r of ramps)if(Math.abs(P.x-r.x)<4.5&&Math.abs(P.z-(r.z-4))<1.2&&P.v>8){P.air=true;P.vy=8+P.v*0.28;flash('BIG AIR !','#6fd3ff');}}
- if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');break;}
+ if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');shot('Crash');break;}
  if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');}
  for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
  $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
  $('tr').firstChild.nodeValue=P.t.toFixed(1)+' s';$('sp').textContent=Math.round(P.v*3.6)+' km/h';$('prog').style.width=Math.min(100,-P.z/LEN*100)+'%';}
-function draw(dt){if(mixer){const w=P.air?Math.min(1,Math.max(P.grab,0.6*(P.tSpin||P.tFlip?1:0))):0;aGrab.setEffectiveWeight(w);aRide.setEffectiveWeight(1-w);mixer.update(dt||0);}
+function draw(dt){let useFlip=false,useSpin=false;if(mixer){
+ if(oneShot===A.Crash&&P.crash<=0){oneShot.fadeOut(0.3);oneShot=null;}
+ const T=Math.PI*2,fr=x=>{x=Math.abs(x)/T;return x-Math.floor(x);};
+ useFlip=P.air&&P.tFlip!==0;useSpin=P.air&&P.tSpin!==0&&!useFlip;
+ const k=(a,w)=>{const c=A[a].getEffectiveWeight();A[a].setEffectiveWeight(c+(w-c)*Math.min(1,(dt||0)*10));};
+ const air=P.air,os=oneShot?1:0,base=(1-os)*(useFlip||useSpin?0:1);
+ const gw=air&&!useFlip&&!useSpin?Math.max(P.grab,0.5):0;
+ const sl=Math.max(0,-P.steer),sr=Math.max(0,P.steer);
+ k('Grab',gw*base);k('Ride',(1-gw)*base*(1-sl-sr));k('TurnL',(1-gw)*base*sl);k('TurnR',(1-gw)*base*sr);
+ A.Flip.setEffectiveWeight(useFlip?1-os:0);A.Spin360.setEffectiveWeight(useSpin?1-os:0);
+ if(useFlip)A.Flip.time=A.Flip.getClip().duration*fr(P.flip);
+ if(useSpin)A.Spin360.time=A.Spin360.getClip().duration*(P.spin>=0?fr(P.spin):1-fr(P.spin));
+ mixer.update(dt||0);}
 rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
- body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
+ if(mixer)body.rotation.set(useFlip?0:P.flip,useSpin?0:(useFlip?P.spin:P.spin),0);else body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
  const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
  C.lookAt(P.x,P.y+1.2,P.z-5);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
  R.render(S,C);}
