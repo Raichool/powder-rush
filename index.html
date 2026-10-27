@@ -15,11 +15,11 @@ canvas{display:block}
 .scr p{max-width:340px;line-height:1.45;font-size:15px}
 .scr button{font-size:22px;font-weight:900;padding:14px 40px;border:0;border-radius:40px;background:#ffe14a;color:#1b2b5e;margin-top:10px}
 .hide{display:none!important}
-</style></head><body>
-<div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
+#mute{position:fixed;z-index:20;right:12px;bottom:28px;width:48px;height:48px;border-radius:24px;border:0;background:rgba(20,30,60,.55);color:#fff;font-size:22px;touch-action:manipulation}</style></head><body>
+<button id="mute" aria-label="Son">🔊</button><div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
 <div id="start" class="scr"><h1>POWDER RUSH</h1><p><b>Glisse</b> le doigt gauche/droite pour tourner.<br><b>Tape</b> pour sauter.<br>En l'air, <b>swipe</b> : ← → vrille, ↑ salto, ↓ grab.<br>Termine la figure avant de toucher la neige !</p><button id="go">GO !</button></div>
 <div id="end" class="scr hide"><h1>ARRIVÉE</h1><p id="res"></p><button id="again">REJOUER</button></div>
-<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+<script src="audio.js"></script><script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -79,14 +79,14 @@ addEventListener('pointerup',e=>{if(tx===null)return;const dx=e.clientX-sx,dy=e.
  if(d<15&&dt<300)jump();else if(P.air&&d>30){if(Math.abs(dx)>Math.abs(dy))trick(dx>0?'R':'L');else trick(dy<0?'U':'D');}});
 addEventListener('keydown',e=>{keys[e.key]=1;if(st!=='play')return;if(e.key===' ')jump();if(P.air){({a:'L',d:'R',w:'U',s:'D'})[e.key]&&trick(({a:'L',d:'R',w:'U',s:'D'})[e.key]);}});
 addEventListener('keyup',e=>keys[e.key]=0);
-function jump(){if(P.air||P.crash>0)return;P.air=true;P.vy=7;}
-function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?1:-1)*Math.PI*2;P.trickPts+=360;P.name='Vrille '+Math.round(Math.abs(P.tSpin)/Math.PI*180);}
+function jump(){if(P.air||P.crash>0)return;P.air=true;P.vy=7;AU.jump();}
+function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?-1:1)*Math.PI*2;P.trickPts+=360;P.name='Vrille '+Math.round(Math.abs(P.tSpin)/Math.PI*180);}
  else if(d==='U'){P.tFlip-=Math.PI*2;P.trickPts+=500;P.name='Salto x'+Math.round(Math.abs(P.tFlip)/(Math.PI*2));}
  else {P.tGrab+=1;P.trickPts+=200;P.name='Grab Indy';}flash(P.name);}
 function shot(n){if(!mixer)return;const a=A[n];if(oneShot&&oneShot!==a)oneShot.fadeOut(0.15);a.reset();a.setEffectiveWeight(1);a.fadeIn(0.12);a.play();oneShot=a;}
 function land(){const ok=Math.abs(P.tSpin-P.spin)<0.9&&Math.abs(P.tFlip-P.flip)<0.9&&P.grab<0.3;if(ok)shot('Land');
- if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');shot('Crash');}
- else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);}
+ if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');AU.crash(0);shot('Crash');}
+ else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);AU.land(1,g);if(P.combo>1)AU.combo(P.combo);}else if(ok)AU.land(1,0);
  P.spin=P.tSpin=P.flip=P.tFlip=0;P.tGrab=0;P.grab=0;P.trickPts=0;}
 // loop
 function resize(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.fov=innerWidth<innerHeight?78:62;C.updateProjectionMatrix();}
@@ -102,9 +102,9 @@ function step(dt){if(st!=='play')return;P.t+=dt;
   P.spin+=Math.sign(P.tSpin-P.spin)*Math.min(Math.abs(P.tSpin-P.spin),dt*11);P.flip+=Math.sign(P.tFlip-P.flip)*Math.min(Math.abs(P.tFlip-P.flip),dt*9);
   if(P.tGrab>0){P.grab=Math.min(1,P.grab+dt*6);P.tGrab-=dt*1.4;}else P.grab=Math.max(0,P.grab-dt*5);
   if(P.y<=g&&P.vy<0){P.y=g;P.air=false;land();}}
- else{P.y=g;for(const r of ramps)if(Math.abs(P.x-r.x)<4.5&&Math.abs(P.z-(r.z-4))<1.2&&P.v>8){P.air=true;P.vy=8+P.v*0.28;flash('BIG AIR !','#6fd3ff');}}
- if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');shot('Crash');break;}
- if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');}
+ else{P.y=g;for(const r of ramps)if(Math.abs(P.x-r.x)<4.5&&Math.abs(P.z-(r.z-4))<1.2&&P.v>8){P.air=true;P.vy=8+P.v*0.28;flash('BIG AIR !','#6fd3ff');AU.jump();}}
+ if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');AU.crash(1);shot('Crash');break;}
+ if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');AU.finish();}
  for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
  $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
  $('tr').firstChild.nodeValue=P.t.toFixed(1)+' s';$('sp').textContent=Math.round(P.v*3.6)+' km/h';$('prog').style.width=Math.min(100,-P.z/LEN*100)+'%';}
@@ -126,9 +126,10 @@ rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
  const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
  C.lookAt(P.x,P.y+1.2,P.z-5);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
  R.render(S,C);}
-function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw(dt);requestAnimationFrame(loop);}
+function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw(dt);AU.update({v:P.v,steer:P.steer,air:P.air,trick:P.air&&(Math.abs(P.tSpin-P.spin)>0.15||Math.abs(P.tFlip-P.flip)>0.15||P.grab>0.2),combo:P.combo,play:st==='play'&&P.crash<=0});requestAnimationFrame(loop);}
 requestAnimationFrame(loop);
-const go=()=>{reset();st='play';$('start').classList.add('hide');$('end').classList.add('hide');};
+const go=()=>{AU.init();AU.start();reset();st='play';$('start').classList.add('hide');$('end').classList.add('hide');};
+$('mute').textContent=AU.muted?'🔇':'🔊';$('mute').onclick=e=>{e.stopPropagation();AU.init();$('mute').textContent=AU.toggle()?'🔇':'🔊';};['pointerdown','pointerup'].forEach(t=>$('mute').addEventListener(t,e=>e.stopPropagation()));
 $('go').onclick=go;$('again').onclick=go;
 window.__start=go;
 </script></body></html>
