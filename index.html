@@ -15,8 +15,8 @@ canvas{display:block}
 .scr p{max-width:340px;line-height:1.45;font-size:15px}
 .scr button{font-size:22px;font-weight:900;padding:14px 40px;border:0;border-radius:40px;background:#ffe14a;color:#1b2b5e;margin-top:10px}
 .hide{display:none!important}
-#mute{position:fixed;z-index:20;right:12px;bottom:28px;width:48px;height:48px;border-radius:24px;border:0;background:rgba(20,30,60,.55);color:#fff;font-size:22px;touch-action:manipulation}</style></head><body>
-<button id="mute" aria-label="Son">🔊</button><div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
+#mute{position:fixed;z-index:20;right:12px;bottom:28px;width:48px;height:48px;border-radius:24px;border:0;background:rgba(20,30,60,.55);color:#fff;font-size:22px;touch-action:manipulation}#bst{position:fixed;z-index:15;left:14px;bottom:90px;width:14px;height:150px;border-radius:7px;background:#0005;overflow:hidden;border:2px solid #fff8}#bstf{position:absolute;bottom:0;left:0;width:100%;height:0;background:linear-gradient(#ff3fa4,#ffd23f)}#bbtn{position:fixed;z-index:20;left:6px;bottom:28px;width:72px;height:48px;border-radius:24px;border:0;font:800 14px system-ui;background:#555a;color:#fff9;touch-action:manipulation}#bbtn.on{background:linear-gradient(90deg,#ff3fa4,#ffd23f);color:#1b2b5e;box-shadow:0 0 18px #ff3fa4}#bst.full{box-shadow:0 0 14px #ffd23f}</style></head><body>
+<div id="bst"><i id="bstf"></i></div><button id="bbtn">BOOST</button><button id="mute" aria-label="Son">🔊</button><div id="hud"><div id="tl">0 pts<br><small id="cb"></small></div><div id="tr">0.0 s<br><small id="sp">0 km/h</small></div><div id="trick"></div><div id="bar"><i id="prog"></i></div></div>
 <div id="start" class="scr"><h1>POWDER RUSH</h1><p><b>Glisse</b> le doigt gauche/droite pour tourner.<br><b>Tape</b> pour sauter.<br>En l'air, <b>swipe</b> : ← → vrille, ↑ salto, ↓ grab.<br>Termine la figure avant de toucher la neige !</p><button id="go">GO !</button></div>
 <div id="end" class="scr hide"><h1>ARRIVÉE</h1><p id="res"></p><button id="again">REJOUER</button></div>
 <script src="audio.js"></script><script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
@@ -67,7 +67,7 @@ new GLTFLoader().load('assets/rider.glb',g=>{const m=g.scene;m.rotation.y=Math.P
  mixer.addEventListener('finished',e=>{if(e.action===oneShot&&oneShot===A.Land){oneShot.fadeOut(0.2);oneShot=null;}});window.__riderLoaded=true;},undefined,e=>console.warn('rider glb',e));
 // state
 let P,st='menu';const $=id=>document.getElementById(id);
-function reset(){P={x:0,z:-5,y:hgt(0,-5),vy:0,v:18,steer:0,air:false,spin:0,flip:0,grab:0,tSpin:0,tFlip:0,tGrab:0,trickPts:0,score:0,combo:1,crash:0,t:0,name:''};
+function reset(){P={boost:0.3,boostT:0,x:0,z:-5,y:hgt(0,-5),vy:0,v:18,steer:0,air:false,spin:0,flip:0,grab:0,tSpin:0,tFlip:0,tGrab:0,trickPts:0,score:0,combo:1,crash:0,t:0,name:''};
  for(let i=0;i<pN;i++){pp[i*3]=(rnd()-.5)*30;pp[i*3+1]=P.y+rnd()*8;pp[i*3+2]=P.z-rnd()*60;}}
 reset();
 function flash(s,c){const e=$('trick');e.textContent=s;e.style.color=c||'#ffe14a';e.style.opacity=1;clearTimeout(flash.t);flash.t=setTimeout(()=>e.style.opacity=0,1100);}
@@ -77,8 +77,9 @@ addEventListener('pointerdown',e=>{if(st!=='play')return;tx=e.clientX;sx=e.clien
 addEventListener('pointermove',e=>{if(tx===null||P.air)return;steerT=Math.max(-1,Math.min(1,(e.clientX-sx)/(innerWidth*0.25)));});
 addEventListener('pointerup',e=>{if(tx===null)return;const dx=e.clientX-sx,dy=e.clientY-sy,dt=performance.now()-t0,d=Math.hypot(dx,dy);tx=null;steerT=0;
  if(d<15&&dt<300)jump();else if(P.air&&d>30){if(Math.abs(dx)>Math.abs(dy))trick(dx>0?'R':'L');else trick(dy<0?'U':'D');}});
-addEventListener('keydown',e=>{keys[e.key]=1;if(st!=='play')return;if(e.key===' ')jump();if(P.air){({a:'L',d:'R',w:'U',s:'D'})[e.key]&&trick(({a:'L',d:'R',w:'U',s:'D'})[e.key]);}});
+addEventListener('keydown',e=>{keys[e.key]=1;if(st!=='play')return;if(e.key===' ')jump();if(e.key==='b')boost();if(P.air){({a:'L',d:'R',w:'U',s:'D'})[e.key]&&trick(({a:'L',d:'R',w:'U',s:'D'})[e.key]);}});
 addEventListener('keyup',e=>keys[e.key]=0);
+function boost(){if(st!=='play'||P.boost<0.5||P.boostT>0||P.crash>0)return;P.boostT=3*P.boost;P.boost=0;flash('BOOST !','#ffd23f');AU.boost();}
 function jump(){if(P.air||P.crash>0)return;P.air=true;P.vy=7;AU.jump();}
 function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?-1:1)*Math.PI*2;P.trickPts+=360;P.name='Vrille '+Math.round(Math.abs(P.tSpin)/Math.PI*180);}
  else if(d==='U'){P.tFlip-=Math.PI*2;P.trickPts+=500;P.name='Salto x'+Math.round(Math.abs(P.tFlip)/(Math.PI*2));}
@@ -86,7 +87,7 @@ function trick(d){if(d==='L'||d==='R'){P.tSpin+= (d==='R'?-1:1)*Math.PI*2;P.tric
 function shot(n){if(!mixer)return;const a=A[n];if(oneShot&&oneShot!==a)oneShot.fadeOut(0.15);a.reset();a.setEffectiveWeight(1);a.fadeIn(0.12);a.play();oneShot=a;}
 function land(){const ok=Math.abs(P.tSpin-P.spin)<0.9&&Math.abs(P.tFlip-P.flip)<0.9&&P.grab<0.3;if(ok)shot('Land');
  if(!ok){P.crash=1.6;P.v=4;P.combo=1;flash('CHUTE !','#ff5555');AU.crash(0);shot('Crash');}
- else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);AU.land(1,g);if(P.combo>1)AU.combo(P.combo);}else if(ok)AU.land(1,0);
+ else if(P.trickPts>0){const g=Math.round(P.trickPts*P.combo);P.score+=g;flash('+'+g+(P.combo>1?' x'+P.combo:''));P.combo=Math.min(P.combo+1,8);P.boost=Math.min(1,P.boost+g/2500+0.08*P.combo);AU.land(1,g);if(P.combo>1)AU.combo(P.combo);}else if(ok)AU.land(1,0);
  P.spin=P.tSpin=P.flip=P.tFlip=0;P.tGrab=0;P.grab=0;P.trickPts=0;}
 // loop
 function resize(){R.setSize(innerWidth,innerHeight);C.aspect=innerWidth/innerHeight;C.fov=innerWidth<innerHeight?78:62;C.updateProjectionMatrix();}
@@ -95,7 +96,7 @@ let last=performance.now();
 function step(dt){if(st!=='play')return;P.t+=dt;
  const kb=(keys.ArrowRight?1:0)-(keys.ArrowLeft?1:0);const tgt=kb||steerT;
  if(P.crash>0){P.crash-=dt;P.steer*=0.9;}else P.steer+=(tgt-P.steer)*Math.min(1,dt*8);
- if(!P.air){P.v+=dt*(7-Math.abs(P.steer)*7);P.v=Math.min(P.v,P.crash>0?8:38);}
+ if(!P.air){P.v+=dt*(7-Math.abs(P.steer)*7);if(P.boostT>0){P.boostT-=dt;P.v+=dt*30;}P.v=Math.min(P.v,P.crash>0?8:(P.boostT>0?54:38));}
  P.x+=P.steer*P.v*0.55*dt;P.x=Math.max(-W/2-8,Math.min(W/2+8,P.x));P.z-=P.v*dt*Math.cos(P.steer*0.5);
  const g=hgt(P.x,P.z);
  if(P.air){P.vy-=20*dt;P.y+=P.vy*dt;
@@ -106,7 +107,7 @@ function step(dt){if(st!=='play')return;P.t+=dt;
  if(P.crash<=0&&P.y-g<2)for(const t of trees)if(!t.dead&&Math.abs(t.z-P.z)<1.2&&Math.abs(t.x-P.x)<1.3){P.crash=1.6;P.v=3;P.combo=1;P.x+=P.x>t.x?1.6:-1.6;flash('SAPIN !','#ff5555');AU.crash(1);shot('Crash');break;}
  if(P.z<-LEN){st='end';$('res').innerHTML=`Score : <b>${P.score}</b><br>Temps : <b>${P.t.toFixed(1)} s</b>`;$('end').classList.remove('hide');AU.finish();}
  for(let i=0;i<pN;i++){if(pp[i*3+2]>P.z+3){pp[i*3]=P.x+(rnd()-.5)*30;pp[i*3+2]=P.z-30-rnd()*40;pp[i*3+1]=hgt(0,pp[i*3+2])+rnd()*8;}}pg.attributes.position.needsUpdate=true;
- $('tl').firstChild.nodeValue=P.score+' pts';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
+ $('tl').firstChild.nodeValue=P.score+' pts';$('bstf').style.height=(P.boostT>0?P.boostT/3:P.boost)*100+'%';$('bbtn').className=P.boost>=0.5&&P.boostT<=0?'on':'';$('bst').className=P.boost>=1?'full':'';$('cb').textContent=P.combo>1?'combo x'+P.combo:'';
  $('tr').firstChild.nodeValue=P.t.toFixed(1)+' s';$('sp').textContent=Math.round(P.v*3.6)+' km/h';$('prog').style.width=Math.min(100,-P.z/LEN*100)+'%';}
 function draw(dt){let useFlip=false,useSpin=false;if(mixer){
  if(oneShot===A.Crash&&P.crash<=0){oneShot.fadeOut(0.3);oneShot=null;}
@@ -123,13 +124,14 @@ function draw(dt){let useFlip=false,useSpin=false;if(mixer){
  mixer.update(dt||0);}
 rider.position.set(P.x,P.y,P.z);rider.rotation.set(0,-P.steer*0.5,0);
  if(mixer)body.rotation.set(useFlip?0:P.flip,useSpin?0:(useFlip?P.spin:P.spin),0);else body.rotation.set(P.flip,P.spin,P.crash>0?Math.sin(P.t*20)*0.8:-P.steer*0.4);torso.position.y=0.95-P.grab*0.3;
- const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
+ const cz=P.z+5.2,cy=Math.max(P.y,hgt(P.x,cz))+2.6;{const f=(innerWidth<innerHeight?78:62)+(P.boostT>0?14:0);if(Math.abs(C.fov-f)>0.1){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}}C.position.lerp(new THREE.Vector3(P.x*0.85,cy,cz),0.25);
  C.lookAt(P.x,P.y+1.2,P.z-5);const f=(innerWidth<innerHeight?78:62)+P.v*0.25;if(Math.abs(C.fov-f)>0.3){C.fov+=(f-C.fov)*0.1;C.updateProjectionMatrix();}
  R.render(S,C);}
 function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;step(dt);draw(dt);AU.update({v:P.v,steer:P.steer,air:P.air,trick:P.air&&(Math.abs(P.tSpin-P.spin)>0.15||Math.abs(P.tFlip-P.flip)>0.15||P.grab>0.2),combo:P.combo,play:st==='play'&&P.crash<=0});requestAnimationFrame(loop);}
 requestAnimationFrame(loop);
 const go=()=>{AU.init();AU.start();reset();st='play';$('start').classList.add('hide');$('end').classList.add('hide');};
 $('mute').textContent=AU.muted?'🔇':'🔊';$('mute').onclick=e=>{e.stopPropagation();AU.init();$('mute').textContent=AU.toggle()?'🔇':'🔊';};['pointerdown','pointerup'].forEach(t=>$('mute').addEventListener(t,e=>e.stopPropagation()));
+['pointerdown','pointerup'].forEach(t=>$('bbtn').addEventListener(t,e=>{e.stopPropagation();if(t==='pointerdown')boost();}));
 $('go').onclick=go;$('again').onclick=go;
-window.__start=go;
+window.__start=go;window.__dbg=f=>f(P);
 </script></body></html>
