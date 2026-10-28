@@ -44,6 +44,9 @@ const A={init,
  finish(){if(!ctx)return;const t=ctx.currentTime;[60,64,67,72,76,79,84].forEach((n,i)=>tone(hz(n),0,0.2,'square',0.13,t+i*0.08));},
  boost(){if(!ctx)return;burst(400,0.6,0.5,'bandpass',undefined,SFX,4000);tone(110,880,0.5,'sawtooth',0.15);},
  grind(on){if(!ctx)return;if(on){burst(5000,0.25,0.3,'highpass');tone(1800,1200,0.25,'sawtooth',0.05);}gr=on;},
+ count(n){if(!ctx)return;n?tone(660,0,0.18,'square',0.22):tone(1320,0,0.5,'square',0.25);},
+ pass(up){if(!ctx)return;const t=ctx.currentTime;up?[0,7,12].forEach((k,i)=>tone(hz(79+k),0,0.09,'square',0.12,t+i*0.05)):[12,5].forEach((k,i)=>tone(hz(67+k),0,0.12,'triangle',0.14,t+i*0.07));},
+ bump(){if(!ctx)return;burst(700,0.15,0.5);tone(120,70,0.12,'square',0.2);},
  ui(){if(!ctx)return;tone(660,990,0.06,'square',0.1);},
  record(ms){return new Promise(r=>{const d=ctx.createMediaStreamDestination();M.connect(d);const mr=new MediaRecorder(d.stream),ch=[];mr.ondataavailable=e=>ch.push(e.data);mr.onstop=async()=>{const b=new Blob(ch);const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(b);};mr.start();setTimeout(()=>mr.stop(),ms);});}
 };
